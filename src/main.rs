@@ -3,7 +3,7 @@ extern crate sdl2;
 use logwatcher::LogWatcher;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::{pixels::Color, rect::Rect, render::Texture, rwops::RWops, video::gl_attr};
+use sdl2::{pixels::Color, rect::Rect, render::Texture, rwops::RWops};
 use std::time::Duration;
 
 use std::sync::{Arc, RwLock};
@@ -11,7 +11,7 @@ use std::sync::{Arc, RwLock};
 use clap::Clap;
 
 #[derive(Clap)]
-#[clap(version = "1.0", author = "Giacomo R. <gufoes@gmail.com>")]
+#[clap(version = "1.1", author = "Giacomo R. <gufoes@gmail.com>")]
 struct Opts {
     #[clap(short, long)]
     title: Option<String>,
@@ -19,6 +19,8 @@ struct Opts {
     x: Option<usize>,
     #[clap(short, long, default_value = "1")]
     y: usize,
+    #[clap(short, long, default_value = ",")]
+    separator: String,
     data: Vec<String>,
 }
 
@@ -234,41 +236,51 @@ struct CsvChart {
 }
 
 impl CsvChart {
-    fn new(path: &str, x: Option<usize>, y: usize) -> Self {
+    fn new(sep: &str, path: &str, x: Option<usize>, y: usize) -> Self {
         let mut ret_chart = Self {
             data: Arc::new(RwLock::new(vec![])),
             x,
             y,
         };
 
-        ret_chart.parse_file(path);
-        ret_chart.tail_file(path);
+        ret_chart.parse_file(sep, path);
+        ret_chart.tail_file(sep, path);
 
         ret_chart
     }
-    fn parse_file(&mut self, path: &str) {
+    fn parse_file(&mut self, sep: &str, path: &str) {
         use std::io::BufRead;
         let file = std::fs::File::open(path).unwrap();
         for line in std::io::BufReader::new(file).lines() {
-            self.push(Self::parse_line(line.unwrap()));
+            self.push(Self::parse_line(sep, line.unwrap()));
         }
     }
-    fn tail_file(&mut self, path: &str) {
+    fn tail_file(&mut self, sep: &str, path: &str) {
         let mut chart = self.clone();
         let path = path.to_string();
+        let sep = sep.to_string();
         std::thread::spawn(move || {
             let mut log_watcher = LogWatcher::register(path).unwrap();
 
             log_watcher.watch(&mut move |line: String| {
                 // println!("Line {}", line);
-                chart.push(Self::parse_line(line));
+                chart.push(Self::parse_line(&sep, line));
                 logwatcher::LogWatcherAction::None
             });
         });
     }
-    fn parse_line(line: String) -> Line {
-        line.split("\t")
-            .map(|x| x.parse::<f64>().unwrap_or(0.0))
+    fn parse_line(sep: &str, line: String) -> Line {
+        line.split(sep)
+            .map(|x| {
+                use chrono::NaiveDateTime;
+                if let Ok(x) = x.parse::<f64>() {
+                    x
+                } else if let Ok(x) = NaiveDateTime::parse_from_str(x, "%Y-%m-%d %H:%M:%S") {
+                    x.timestamp() as f64
+                } else {
+                    0.0
+                }
+            })
             .collect()
     }
     fn push(&mut self, line: Line) {
@@ -277,10 +289,10 @@ impl CsvChart {
     }
     fn line_to_point(&self, count: usize, line: &Line) -> (f64, f64) {
         let x = match self.x {
-            Some(x) => line[x],
+            Some(x) => *line.get(x).unwrap_or(&0.0),
             None => count as f64,
         };
-        (x, line[self.y])
+        (x, *line.get(self.y).unwrap_or(&0.0))
     }
 }
 
@@ -321,7 +333,10 @@ pub fn main() {
     let font = ttf.load_font_from_rwops(var_name, 300).unwrap();
 
     let video_subsystem = sdl_context.video().unwrap();
-    let opts: Opts = Opts::parse();
+    let mut opts: Opts = Opts::parse();
+    if opts.separator == "\\t" {
+        opts.separator = "\t".to_string();
+    }
 
     let window = video_subsystem
         .window("chart", 800, 700)
@@ -332,7 +347,7 @@ pub fn main() {
 
     let mut chartlist = ChartList::new();
     for file in opts.data.iter() {
-        chartlist.add(Box::new(CsvChart::new(file, opts.x, opts.y)));
+        chartlist.add(Box::new(CsvChart::new(&opts.separator, file, opts.x, opts.y)));
     }
 
     let mut canvas = window.into_canvas().build().unwrap();

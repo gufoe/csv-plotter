@@ -5,12 +5,11 @@
 
 ## Usage
 ```
-$ plot-rs --help
-plot-rs 1.0
+$ csv-plotter --help
 Giacomo R. <gufoes@gmail.com>
 
 USAGE:
-    plot-rs [OPTIONS] [data]...
+    csv-plotter [OPTIONS] [data]...
 
 ARGS:
     <data>...    
@@ -20,8 +19,17 @@ FLAGS:
     -V, --version    Prints version information
 
 OPTIONS:
-    -t, --title <title>    
-    -x, --x <x>            
-    -y, --y <y>            [default: 1]
+    -s, --separator <separator>    [default: ,]
+    -t, --title <title>            
+    -x, --x <x>                    
+    -y, --y <y>                    [default: 1]
 
 ```
+
+
+## Examples
+Plot file using first column for X axis and second column for Y axis  
+`csv-plotter -x 0 -y 1 ~/.local/atom.log`
+
+Plot file using row number for X axis and first column for Y axis in a tab separated file  
+`csv-plotter -y 0 --separator '\t' /tmp/test.log`
