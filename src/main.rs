@@ -11,7 +11,7 @@ use std::sync::{Arc, RwLock};
 use clap::Clap;
 
 #[derive(Clap)]
-#[clap(version = "1.0", author = "Kevin K. <kbknapp@gmail.com>")]
+#[clap(version = "1.0", author = "Giacomo R. <gufoes@gmail.com>")]
 struct Opts {
     #[clap(short, long)]
     title: Option<String>,
