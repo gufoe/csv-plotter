@@ -149,7 +149,7 @@ impl ChartList {
                             new_point
                                 .1
                                 .iter_mut()
-                                .for_each(|y| *y /= opts.y.len() as f64);
+                                .for_each(|y| *y /= avg as f64);
                             new_data.push(new_point);
                         }
                         data = new_data;
