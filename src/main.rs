@@ -4,13 +4,12 @@ use logwatcher::LogWatcher;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::{pixels::Color, rect::Rect, render::Texture, rwops::RWops};
-use structopt::StructOpt;
 use std::time::Duration;
+use structopt::StructOpt;
 
 use std::sync::{Arc, RwLock};
 
 #[derive(Debug, StructOpt)]
-
 #[structopt(version = "1.1", author = "Giacomo R. <gufoes@gmail.com>")]
 struct Opts {
     #[structopt(short, long)]
@@ -147,6 +146,10 @@ impl ChartList {
                                     *y += data[x_plus_offset].1[y_i];
                                 }
                             }
+                            new_point
+                                .1
+                                .iter_mut()
+                                .for_each(|y| *y /= opts.y.len() as f64);
                             new_data.push(new_point);
                         }
                         data = new_data;
