@@ -18,9 +18,11 @@ struct Opts {
     #[clap(short, long)]
     x: Option<usize>,
     #[clap(short, long, default_value = "1")]
-    y: usize,
+    y: Vec<usize>,
     #[clap(short, long, default_value = ",")]
     separator: String,
+    #[clap(short, long)]
+    average: Option<usize>,
     data: Vec<String>,
 }
 
@@ -71,16 +73,13 @@ impl Bounds {
 }
 
 trait Chart {
-    fn data(&self) -> Vec<(f64, f64)>;
+    fn data(&self) -> Vec<(f64, Vec<f64>)>;
 }
-
 
 struct ChartState {
-
     size: usize,
 }
-impl ChartState {
-}
+impl ChartState {}
 struct ChartList {
     last_size: (u32, u32),
     charts: Vec<(Box<dyn Chart>, ChartState)>,
@@ -88,7 +87,10 @@ struct ChartList {
 type Canv = sdl2::render::Canvas<sdl2::video::Window>;
 impl ChartList {
     fn new() -> Self {
-        Self { charts: vec![], last_size: (0,0) }
+        Self {
+            charts: vec![],
+            last_size: (0, 0),
+        }
     }
     fn add(&mut self, chart: Box<dyn Chart>) {
         self.charts.push((chart, ChartState { size: 0 }));
@@ -99,9 +101,9 @@ impl ChartList {
             Color::RGBA(r, g, b, a)
         }
         let colors = vec![
-            color(188, 162, 111, opacity),
-            color(130, 152, 112, opacity),
-            color(144, 114, 138, opacity),
+            color(255, 100, 30, opacity),
+            color(60, 200, 100, opacity),
+            color(80, 114, 255, opacity),
             color(166, 108, 90, opacity),
             color(153, 78, 85, opacity),
         ];
@@ -128,12 +130,29 @@ impl ChartList {
         let mut bounds = Bounds::new();
         let fs = 20 as u32;
         let pad = 10 as i32;
-        let mut charts = self.charts
+        let mut charts = self
+            .charts
             .iter_mut()
             .map(|chart| {
-                let data = chart.0.data();
+                let mut data = chart.0.data();
+
+                if let Some(avg) = opts.average {
+                    let mut new_data = vec![];
+                    for x in 0..(data.len() - avg - 1) {
+                        let mut new_point = (data[x + avg - 1].0, vec![0.0; opts.y.len()]);
+                        for x_plus_offset in x..(x + avg) {
+                            for y_i in 0..opts.y.len() {
+                                let y = new_point.1.get_mut(y_i).unwrap();
+                                *y += data[x_plus_offset].1[y_i];
+                            }
+                        }
+                        new_data.push(new_point);
+                    }
+                    data = new_data;
+                }
+
                 data.iter().for_each(|p| {
-                    bounds = bounds.update(p);
+                    p.1.iter().for_each(|y| bounds = bounds.update(&(p.0, *y)));
                 });
                 (chart, data)
             })
@@ -148,35 +167,40 @@ impl ChartList {
 
         charts.iter_mut().for_each(|x| {
             let len = x.1.len();
-            if len > x.0.1.size {
-                x.0.1.size = len;
+            if len > x.0 .1.size {
+                x.0 .1.size = len;
                 changed = true;
             }
         });
         if !changed {
-            return
+            return;
         }
 
-        canvas.set_draw_color(Color::RGB(46, 52, 64));
+        canvas.set_draw_color(Color::RGB(10, 10, 10));
         canvas.clear();
 
-        charts.iter()
+        let mut line_i = 0;
+        charts
+            .iter()
             .enumerate()
             .for_each(|(chart_i, (_chart, data))| {
-                canvas.set_draw_color(colors[chart_i % colors.len()]);
-                let mut points = vec![];
-                data.iter().for_each(|(x, y)| {
-                    let x = (x - bounds.minx) / (bounds.maxx - bounds.minx);
-                    let y = (y - bounds.miny) / (bounds.maxy - bounds.miny);
-                    let x = pad + (x * (size.0 as i32 - pad as i32 * 2) as f64) as i32;
-                    let mut y = pad + (y * (size.1 as i32 - pad as i32 * 2) as f64) as i32;
-                    // println!("point a {} {}", x, y);
-                    y = size.1 as i32 - y;
-                    // println!("point c {} {}", x, y);
-                    let p = (x, y);
-                    points.push(p.into());
-                });
-                canvas.draw_lines(&points[..]).unwrap();
+                for y_i in 0..opts.y.len() {
+                    canvas.set_draw_color(colors[line_i % colors.len()]);
+                    line_i += 1;
+                    let mut points = vec![];
+                    data.iter().for_each(|(x, y)| {
+                        let x = (x - bounds.minx) / (bounds.maxx - bounds.minx);
+                        let y = (y.get(y_i).unwrap() - bounds.miny) / (bounds.maxy - bounds.miny);
+                        let x = pad + (x * (size.0 as i32 - pad as i32 * 2) as f64) as i32;
+                        let mut y = pad + (y * (size.1 as i32 - pad as i32 * 2) as f64) as i32;
+                        // println!("point a {} {}", x, y);
+                        y = size.1 as i32 - y;
+                        // println!("point c {} {}", x, y);
+                        let p = (x, y);
+                        points.push(p.into());
+                    });
+                    canvas.draw_lines(&points[..]).unwrap();
+                }
             });
 
         // println!("{:?}", bounds);
@@ -213,14 +237,7 @@ impl ChartList {
             Color::WHITE,
         );
         if let Some(title) = &opts.title {
-            draw_text(
-                canvas,
-                -pad,
-                pad,
-                fs,
-                &format!("{}", &title),
-                Color::WHITE,
-            );
+            draw_text(canvas, -pad, pad, fs, &format!("{}", &title), Color::WHITE);
         }
     }
 }
@@ -232,11 +249,11 @@ type Line = Vec<f64>;
 struct CsvChart {
     data: Lock<Vec<Line>>,
     x: Option<usize>,
-    y: usize,
+    y: Vec<usize>,
 }
 
 impl CsvChart {
-    fn new(sep: &str, path: &str, x: Option<usize>, y: usize) -> Self {
+    fn new(sep: &str, path: &str, x: Option<usize>, y: Vec<usize>) -> Self {
         let mut ret_chart = Self {
             data: Arc::new(RwLock::new(vec![])),
             x,
@@ -287,17 +304,23 @@ impl CsvChart {
         // println!("pushing line {:?}", line);
         self.data.write().unwrap().push(line);
     }
-    fn line_to_point(&self, count: usize, line: &Line) -> (f64, f64) {
+    fn line_to_point(&self, count: usize, line: &Line) -> (f64, Vec<f64>) {
         let x = match self.x {
             Some(x) => *line.get(x).unwrap_or(&0.0),
             None => count as f64,
         };
-        (x, *line.get(self.y).unwrap_or(&0.0))
+        (
+            x,
+            self.y
+                .iter()
+                .map(|y| *line.get(*y).unwrap_or(&0.0))
+                .collect(),
+        )
     }
 }
 
 impl Chart for CsvChart {
-    fn data(&self) -> Vec<(f64, f64)> {
+    fn data(&self) -> Vec<(f64, Vec<f64>)> {
         self.data
             .read()
             .unwrap()
@@ -347,7 +370,12 @@ pub fn main() {
 
     let mut chartlist = ChartList::new();
     for file in opts.data.iter() {
-        chartlist.add(Box::new(CsvChart::new(&opts.separator, file, opts.x, opts.y)));
+        chartlist.add(Box::new(CsvChart::new(
+            &opts.separator,
+            file,
+            opts.x,
+            opts.y.clone(),
+        )));
     }
 
     let mut canvas = window.into_canvas().build().unwrap();
