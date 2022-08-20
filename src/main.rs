@@ -137,18 +137,20 @@ impl ChartList {
                 let mut data = chart.0.data();
 
                 if let Some(avg) = opts.average {
-                    let mut new_data = vec![];
-                    for x in 0..(data.len() - avg - 1) {
-                        let mut new_point = (data[x + avg - 1].0, vec![0.0; opts.y.len()]);
-                        for x_plus_offset in x..(x + avg) {
-                            for y_i in 0..opts.y.len() {
-                                let y = new_point.1.get_mut(y_i).unwrap();
-                                *y += data[x_plus_offset].1[y_i];
+                    if avg < data.len() {
+                        let mut new_data = vec![];
+                        for x in 0..(data.len() - avg - 1) {
+                            let mut new_point = (data[x + avg - 1].0, vec![0.0; opts.y.len()]);
+                            for x_plus_offset in x..(x + avg) {
+                                for y_i in 0..opts.y.len() {
+                                    let y = new_point.1.get_mut(y_i).unwrap();
+                                    *y += data[x_plus_offset].1[y_i];
+                                }
                             }
+                            new_data.push(new_point);
                         }
-                        new_data.push(new_point);
+                        data = new_data;
                     }
-                    data = new_data;
                 }
 
                 data.iter().for_each(|p| {
@@ -183,7 +185,7 @@ impl ChartList {
         charts
             .iter()
             .enumerate()
-            .for_each(|(chart_i, (_chart, data))| {
+            .for_each(|(_chart_i, (_chart, data))| {
                 for y_i in 0..opts.y.len() {
                     canvas.set_draw_color(colors[line_i % colors.len()]);
                     line_i += 1;
