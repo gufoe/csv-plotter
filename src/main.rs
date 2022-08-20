@@ -4,24 +4,24 @@ use logwatcher::LogWatcher;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::{pixels::Color, rect::Rect, render::Texture, rwops::RWops};
+use structopt::StructOpt;
 use std::time::Duration;
 
 use std::sync::{Arc, RwLock};
 
-use clap::Clap;
+#[derive(Debug, StructOpt)]
 
-#[derive(Clap)]
-#[clap(version = "1.1", author = "Giacomo R. <gufoes@gmail.com>")]
+#[structopt(version = "1.1", author = "Giacomo R. <gufoes@gmail.com>")]
 struct Opts {
-    #[clap(short, long)]
+    #[structopt(short, long)]
     title: Option<String>,
-    #[clap(short, long)]
+    #[structopt(short, long)]
     x: Option<usize>,
-    #[clap(short, long, default_value = "1")]
+    #[structopt(short, long, default_value = "1")]
     y: Vec<usize>,
-    #[clap(short, long, default_value = ",")]
+    #[structopt(short, long, default_value = ",")]
     separator: String,
-    #[clap(short, long)]
+    #[structopt(short, long)]
     average: Option<usize>,
     data: Vec<String>,
 }
@@ -358,7 +358,7 @@ pub fn main() {
     let font = ttf.load_font_from_rwops(var_name, 300).unwrap();
 
     let video_subsystem = sdl_context.video().unwrap();
-    let mut opts: Opts = Opts::parse();
+    let mut opts: Opts = Opts::from_args();
     if opts.separator == "\\t" {
         opts.separator = "\t".to_string();
     }
